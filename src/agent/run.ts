@@ -7,6 +7,7 @@ import {
   closeBrowser,
   createBrowserSession,
   getAgentTimeout,
+  getRecordAfterSubmitMs,
   gotoPage,
   launchBrowser,
   saveScreenshot,
@@ -20,7 +21,7 @@ import {
 import { createRunId, RunLogger } from "./runLogger.js";
 import { inspectPage } from "./inspector.js";
 import { fillForm } from "./filler.js";
-import { submitForm } from "./submitter.js";
+import { findValidationErrors, submitForm } from "./submitter.js";
 import { prepareGreenhouseApplication } from "./greenhouse.js";
 import { withDiagnosis } from "./diagnose.js";
 
@@ -140,6 +141,13 @@ export async function runAgent(
 
     screenshots.afterFill = await saveScreenshot(page, runId, "after-fill");
 
+    const invalidAfterFill = await findValidationErrors(formRoot);
+    if (invalidAfterFill.length > 0) {
+      logger.warn(
+        `After fill: ${invalidAfterFill.length} validation issue(s): ${invalidAfterFill.slice(0, 4).join("; ")}`
+      );
+    }
+
     const recaptchaWaitMs = Number(process.env.WAIT_FOR_RECAPTCHA_MS || 0);
     if (recaptchaWaitMs > 0 && inspection.botWarning) {
       logger.info(
@@ -150,6 +158,14 @@ export async function runAgent(
 
     const { submission, clicked, error: submitError } = await submitForm(formRoot, logger);
     submitClicked = clicked;
+
+    const recordTailMs = getRecordAfterSubmitMs();
+    if (recordTailMs > 0 && page) {
+      logger.info(
+        `Continuing screen recording for ${recordTailMs}ms after submit (errors, captcha, or thank-you page)`
+      );
+      await page.waitForTimeout(recordTailMs);
+    }
 
     const success = isSubmissionSuccess(submission);
 

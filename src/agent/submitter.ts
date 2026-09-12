@@ -1,6 +1,6 @@
 import type { Frame, Page, Locator } from "playwright";
 import type { SubmissionResult } from "../types.js";
-import { getSubmissionTimeout } from "./browser.js";
+import { getPostSubmitWaitMs, getSubmissionTimeout } from "./browser.js";
 import { collectValidationErrors } from "./inBrowser/collectValidationErrors.js";
 import { findSubmitButton as findSubmitButtonInPage } from "./inBrowser/findSubmitButton.js";
 import { scanCaptchaText } from "./inBrowser/scanCaptchaText.js";
@@ -90,6 +90,46 @@ export async function findSubmitButton(root: FormRoot): Promise<{
   });
 }
 
+async function waitForPostSubmitOutcome(
+  page: Page,
+  root: FormRoot,
+  urlBefore: string,
+  log: (msg: string) => void
+): Promise<void> {
+  const waitMs = getPostSubmitWaitMs();
+  log(`Waiting up to ${waitMs}ms for post-submit response`);
+  const started = Date.now();
+
+  const successSnippet = () =>
+    page
+      .evaluate(() => (document.body?.innerText || "").toLowerCase())
+      .then((t) =>
+        ["thank you", "application submitted", "successfully submitted"].some((p) =>
+          t.includes(p)
+        )
+      );
+
+  while (Date.now() - started < waitMs) {
+    const urlNow = page.url();
+    if (urlNow !== urlBefore) {
+      log("Post-submit: URL changed");
+      break;
+    }
+    if (await successSnippet()) {
+      log("Post-submit: success text detected");
+      break;
+    }
+    const errors = await findValidationErrors(root);
+    if (errors.length > 0) {
+      log(`Post-submit: ${errors.length} validation message(s) visible`);
+      break;
+    }
+    await page.waitForTimeout(750);
+  }
+
+  await page.waitForTimeout(800);
+}
+
 export async function verifySubmission(
   page: Page,
   root: FormRoot,
@@ -131,6 +171,11 @@ export async function verifySubmission(
       confidence -= 0.2;
       submitted = false;
     }
+  }
+
+  const validationAfter = await findValidationErrors(root);
+  for (const err of validationAfter.slice(0, 8)) {
+    evidence.push(`Validation: ${err}`);
   }
 
   if (!submitted) {
@@ -201,14 +246,12 @@ export async function submitForm(root: FormRoot, logger?: RunLogger): Promise<{
       (async () => {
         await locator.scrollIntoViewIfNeeded({ timeout: 10000 });
         await locator.click({ timeout: 20000 });
-        await page.waitForTimeout(500);
         try {
-          await page.waitForLoadState("networkidle", {
-            timeout: getSubmissionTimeout(),
-          });
+          await page.waitForLoadState("domcontentloaded", { timeout: 5000 });
         } catch {
-          await page.waitForTimeout(2000);
+          /* optional */
         }
+        await waitForPostSubmitOutcome(page, root, urlBefore, log);
       })(),
       new Promise((_, reject) =>
         setTimeout(() => reject(new Error("Submission timeout")), getSubmissionTimeout())

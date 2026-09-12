@@ -40,6 +40,8 @@ The API returns `runId`, `logUrl` (e.g. `/runs/{runId}/run.json`), `recordingUrl
 
 Recording is **on by default**. Each run saves `runs/{runId}/recording.webm` and returns `recordingUrl` for playback in the UI. Set `RECORD_VIDEO=false` in `.env` to disable. If the agent hits the global timeout, the recording may be missing because the browser can still be running in the background.
 
+After Submit, the browser stays open for **`RECORD_AFTER_SUBMIT_MS`** (default 15s) so the video and final screenshot capture validation errors, reCAPTCHA, or a thank-you page—not only the click moment. **`POST_SUBMIT_WAIT_MS`** (default 12s) controls how long submit verification polls before that tail; both add to total run time.
+
 ### Greenhouse job URLs
 
 URLs like `https://job-boards.greenhouse.io/.../jobs/...` are supported with a prep step (scroll, click **Apply**, wait for the form). **Auto-submit is not guaranteed**: custom questions, React comboboxes, and **reCAPTCHA Enterprise** often block full submission. Use the UI **diagnosis**, screenshots, and `run.json` to see whether automation is feasible for that posting.
@@ -66,7 +68,7 @@ Copy `.env` or set:
 
 - `PORT` — default `3000`
 - `HEADLESS` — `true` (default) or `false` to watch the browser while debugging
-- `NAVIGATION_TIMEOUT_MS`, `ACTION_TIMEOUT_MS`, `SUBMISSION_TIMEOUT_MS`, `AGENT_TIMEOUT_MS`
+- `NAVIGATION_TIMEOUT_MS`, `ACTION_TIMEOUT_MS`, `SUBMISSION_TIMEOUT_MS`, `POST_SUBMIT_WAIT_MS` (default 12s — wait after Submit for errors, captcha, or thank-you), `AGENT_TIMEOUT_MS`
 
 ## Known limitations
 

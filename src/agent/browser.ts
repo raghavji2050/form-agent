@@ -22,6 +22,17 @@ export function getSubmissionTimeout(): number {
   return envMs("SUBMISSION_TIMEOUT_MS", 15000);
 }
 
+/** Time to wait after submit click before verifying outcome (validation, captcha, redirect). */
+export function getPostSubmitWaitMs(): number {
+  return envMs("POST_SUBMIT_WAIT_MS", 12000);
+}
+
+/** Extra time to keep the browser (and video) open after submit before closing context. */
+export function getRecordAfterSubmitMs(): number {
+  if (!shouldRecordVideo()) return 0;
+  return envMs("RECORD_AFTER_SUBMIT_MS", 15000);
+}
+
 export function getAgentTimeout(): number {
   return envMs("AGENT_TIMEOUT_MS", 120000);
 }
