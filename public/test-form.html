@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Backend Developer Application</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 520px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+        font-weight: 500;
+      }
+      input,
+      textarea,
+      select {
+        width: 100%;
+        padding: 0.5rem;
+        margin-top: 0.25rem;
+      }
+      button {
+        margin-top: 1.5rem;
+        padding: 0.65rem 1.25rem;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      #success {
+        display: none;
+        margin-top: 1.5rem;
+        padding: 1rem;
+        background: #ecfdf5;
+        border: 1px solid #6ee7b7;
+        color: #065f46;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Backend Developer Application</h1>
+    <form id="app-form">
+      <label for="first-name">First Name</label>
+      <input id="first-name" name="first_name" type="text" required />
+
+      <label for="last-name">Last Name</label>
+      <input id="last-name" name="last_name" type="text" required />
+
+      <label for="email">Email</label>
+      <input id="email" name="emailAddress" type="email" required />
+
+      <label for="phone">Phone</label>
+      <input id="phone" name="phoneNumber" type="tel" />
+
+      <label for="city">City</label>
+      <input id="city" name="city" type="text" />
+
+      <label for="country">Country</label>
+      <select id="country" name="country">
+        <option value="">Select country</option>
+        <option value="US">United States</option>
+        <option value="IN">India</option>
+        <option value="UK">United Kingdom</option>
+      </select>
+
+      <label for="message">Message</label>
+      <textarea id="message" name="cover_letter" rows="4" placeholder="Cover letter"></textarea>
+
+      <label for="resume">Resume upload</label>
+      <input id="resume" name="resume" type="file" accept=".pdf,.doc,.docx" />
+
+      <button type="submit">Submit Application</button>
+    </form>
+
+    <div id="success" role="status">
+      Thank you! Your application has been submitted successfully.
+    </div>
+
+    <script>
+      document.getElementById("app-form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        document.getElementById("app-form").style.display = "none";
+        document.getElementById("success").style.display = "block";
+      });
+    </script>
+  </body>
+</html>

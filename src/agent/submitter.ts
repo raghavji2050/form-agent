@@ -1,0 +1,244 @@
+import type { Frame, Page, Locator } from "playwright";
+import type { SubmissionResult } from "../types.js";
+import { getSubmissionTimeout } from "./browser.js";
+import { collectValidationErrors } from "./inBrowser/collectValidationErrors.js";
+import { findSubmitButton as findSubmitButtonInPage } from "./inBrowser/findSubmitButton.js";
+import { scanCaptchaText } from "./inBrowser/scanCaptchaText.js";
+import type { RunLogger } from "./runLogger.js";
+import type { FormRoot } from "./greenhouse.js";
+
+const SUBMIT_TEXT_PATTERNS = [
+  "submit application",
+  "send application",
+  "apply now",
+  "submit",
+  "apply",
+  "continue",
+  "finish",
+];
+
+const NEGATIVE_BUTTON = ["cancel", "search", "reset", "back", "delete", "remove"];
+
+const SUCCESS_URL = [
+  "thank-you",
+  "thankyou",
+  "success",
+  "confirmation",
+  "submitted",
+  "application-complete",
+  "complete",
+];
+
+const SUCCESS_TEXT = [
+  "thank you",
+  "application submitted",
+  "successfully submitted",
+  "your application has been received",
+  "application received",
+  "thanks for applying",
+];
+
+const FAILURE_TEXT = [
+  "something went wrong",
+  "error",
+  "invalid",
+  "required field",
+  "please correct",
+  "failed",
+];
+
+function playwrightPage(root: FormRoot): Page {
+  const maybePage = root as Page;
+  if (typeof maybePage.goto === "function") {
+    return maybePage;
+  }
+  return (root as Frame).page();
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function resolveSubmitLocator(root: FormRoot, buttonText: string): Promise<Locator> {
+  const pattern = new RegExp(escapeRegExp(buttonText.trim()), "i");
+
+  const roleBtn = root.getByRole("button", { name: pattern }).first();
+  if (await roleBtn.isVisible().catch(() => false)) {
+    return roleBtn;
+  }
+
+  const filtered = root.locator('button, input[type="submit"]').filter({ hasText: pattern }).first();
+  if (await filtered.isVisible().catch(() => false)) {
+    return filtered;
+  }
+
+  return root.getByRole("button", { name: /submit application/i }).first();
+}
+
+export async function findValidationErrors(root: FormRoot): Promise<string[]> {
+  return root.evaluate(collectValidationErrors);
+}
+
+export async function findSubmitButton(root: FormRoot): Promise<{
+  selector: string;
+  text: string;
+  score: number;
+} | null> {
+  return root.evaluate(findSubmitButtonInPage, {
+    submitPatterns: SUBMIT_TEXT_PATTERNS,
+    negative: NEGATIVE_BUTTON,
+  });
+}
+
+export async function verifySubmission(
+  page: Page,
+  root: FormRoot,
+  urlBefore: string
+): Promise<SubmissionResult> {
+  const urlAfter = page.url();
+  const bodyText = (
+    await page.evaluate(() => (document.body?.innerText || "").toLowerCase())
+  ).slice(0, 50000);
+
+  const evidence: string[] = [];
+  let confidence = 0.3;
+  let submitted = false;
+
+  for (const pat of SUCCESS_URL) {
+    if (urlAfter.toLowerCase().includes(pat)) {
+      evidence.push(`URL changed to path containing "${pat}"`);
+      confidence += 0.35;
+      submitted = true;
+    }
+  }
+
+  if (urlAfter !== urlBefore) {
+    evidence.push("URL changed after submit");
+    confidence += 0.15;
+  }
+
+  for (const phrase of SUCCESS_TEXT) {
+    if (bodyText.includes(phrase)) {
+      evidence.push(`Found text: ${phrase}`);
+      confidence += 0.25;
+      submitted = true;
+    }
+  }
+
+  for (const phrase of FAILURE_TEXT) {
+    if (bodyText.includes(phrase)) {
+      evidence.push(`Possible failure text: ${phrase}`);
+      confidence -= 0.2;
+      submitted = false;
+    }
+  }
+
+  if (!submitted) {
+    const captchaHits = await root.evaluate(scanCaptchaText);
+    for (const hit of captchaHits) {
+      evidence.push(`Post-submit captcha signal: ${hit}`);
+    }
+  }
+
+  confidence = Math.max(0, Math.min(1, confidence));
+
+  if (!submitted && confidence >= 0.6) {
+    submitted = true;
+  }
+
+  if (!submitted) {
+    return {
+      submitted: false,
+      confidence,
+      evidence,
+      message: "Unable to confirm submission",
+    };
+  }
+
+  return {
+    submitted: true,
+    confidence,
+    evidence,
+    message: "Submission likely successful",
+  };
+}
+
+export async function submitForm(root: FormRoot, logger?: RunLogger): Promise<{
+  submission: SubmissionResult;
+  clicked: boolean;
+  error?: string;
+}> {
+  const page = playwrightPage(root);
+  const log = (msg: string) => (logger ? logger.info(msg) : console.log(`[Agent] ${msg}`));
+  log("Looking for submit button");
+  const validationErrors = await findValidationErrors(root);
+  if (validationErrors.length > 0) {
+    log(`Validation hints on page: ${validationErrors.slice(0, 3).join("; ")}`);
+  }
+
+  const button = await findSubmitButton(root);
+  if (!button) {
+    return {
+      submission: {
+        submitted: false,
+        confidence: 0,
+        evidence: validationErrors.map((e) => `Validation: ${e}`),
+        message: "Could not identify a safe submit button",
+      },
+      clicked: false,
+      error: "Could not find submit button",
+    };
+  }
+
+  log(`Submit button found: "${button.text}"`);
+  log("Clicking submit");
+
+  const urlBefore = page.url();
+  const locator = await resolveSubmitLocator(root, button.text);
+
+  try {
+    await Promise.race([
+      (async () => {
+        await locator.scrollIntoViewIfNeeded({ timeout: 10000 });
+        await locator.click({ timeout: 20000 });
+        await page.waitForTimeout(500);
+        try {
+          await page.waitForLoadState("networkidle", {
+            timeout: getSubmissionTimeout(),
+          });
+        } catch {
+          await page.waitForTimeout(2000);
+        }
+      })(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Submission timeout")), getSubmissionTimeout())
+      ),
+    ]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Submit click failed";
+    log(`Submit error: ${msg}`);
+    const submission = await verifySubmission(page, root, urlBefore);
+    return {
+      submission: {
+        ...submission,
+        submitted: false,
+        message: msg,
+        submitButtonText: button.text,
+      },
+      clicked: true,
+      error: msg,
+    };
+  }
+
+  log("Verifying result");
+  const submission = await verifySubmission(page, root, urlBefore);
+  submission.submitButtonText = button.text;
+
+  if (submission.submitted) {
+    log("Submission confirmed");
+  } else {
+    log("Unable to confirm submission");
+  }
+
+  return { submission, clicked: true };
+}

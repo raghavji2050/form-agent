@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Validation Test Form</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 480px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      label {
+        display: block;
+        margin-top: 1rem;
+      }
+      input {
+        width: 100%;
+        padding: 0.5rem;
+      }
+      button {
+        margin-top: 1.5rem;
+        padding: 0.5rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Application (validation test)</h1>
+    <form id="form" novalidate>
+      <label for="fname">First Name (required)</label>
+      <input id="fname" name="fname" type="text" required />
+
+      <label for="mail">Email (required)</label>
+      <input id="mail" name="email" type="email" required />
+
+      <button type="submit">Apply</button>
+    </form>
+    <p id="err" style="color: #b91c1c; display: none">Please correct the required fields.</p>
+    <script>
+      document.getElementById("form").addEventListener("submit", function (e) {
+        const form = e.target;
+        if (!form.checkValidity()) {
+          e.preventDefault();
+          document.getElementById("err").style.display = "block";
+        }
+      });
+    </script>
+  </body>
+</html>

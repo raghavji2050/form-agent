@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+  <head>
+
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>Browser Form Agent</title>
+
+    <link rel="stylesheet" href="/style.css" />
+
+  </head>
+
+  <body>
+
+    <main class="container">
+
+      <header>
+
+        <h1>Browser Form Agent</h1>
+
+        <p class="subtitle">MVP form automation proof-of-concept</p>
+
+      </header>
+
+
+
+      <section class="panel">
+
+        <label class="label" for="url-input">Target URL</label>
+
+        <input
+
+          id="url-input"
+
+          type="url"
+
+          placeholder="https://example.com/job/application"
+
+          autocomplete="url"
+
+        />
+
+        <button id="run-btn" type="button">Run Agent</button>
+
+      </section>
+
+
+
+      <section class="panel">
+
+        <h2>Status</h2>
+
+        <p id="status" class="status">Waiting...</p>
+
+      </section>
+
+
+
+      <section class="panel">
+
+        <h2>Result</h2>
+
+        <div id="result" class="result empty">—</div>
+
+        <p id="log-link-wrap" class="log-link hidden">
+
+          <a id="log-link" href="#" target="_blank" rel="noopener">Download run log (JSON)</a>
+
+        </p>
+
+        <div id="recording-wrap" class="recording-wrap hidden">
+
+          <h3>Screen recording</h3>
+
+          <video id="run-recording" class="run-recording" controls playsinline></video>
+
+        </div>
+
+        <div id="screenshot-wrap" class="screenshot-wrap hidden">
+
+          <h3>Screenshots</h3>
+
+          <div id="screenshot-grid" class="screenshot-grid"></div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <script src="/app.js"></script>
+
+  </body>
+
+</html>
+
+
