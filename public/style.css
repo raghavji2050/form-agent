@@ -175,6 +175,12 @@ h1 {
   color: var(--muted);
 }
 
+.recording-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
 .run-recording {
   width: 100%;
   max-width: 100%;

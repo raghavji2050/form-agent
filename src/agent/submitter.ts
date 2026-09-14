@@ -12,6 +12,7 @@ const SUBMIT_TEXT_PATTERNS = [
   "send application",
   "apply now",
   "submit",
+  "send",
   "apply",
   "continue",
   "finish",
@@ -59,20 +60,43 @@ function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-async function resolveSubmitLocator(root: FormRoot, buttonText: string): Promise<Locator> {
-  const pattern = new RegExp(escapeRegExp(buttonText.trim()), "i");
+async function firstMatchingLocator(candidates: Locator[]): Promise<Locator | null> {
+  for (const candidate of candidates) {
+    const target = candidate.first();
+    if ((await target.count().catch(() => 0)) > 0) {
+      return target;
+    }
+  }
+  return null;
+}
 
-  const roleBtn = root.getByRole("button", { name: pattern }).first();
-  if (await roleBtn.isVisible().catch(() => false)) {
-    return roleBtn;
+async function resolveSubmitLocator(
+  root: FormRoot,
+  button: { selector: string; text: string }
+): Promise<Locator> {
+  const text = button.text.trim();
+  const pattern = new RegExp(escapeRegExp(text), "i");
+  const escapedValue = text.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+  const candidates: Locator[] = [];
+
+  if (button.selector) {
+    candidates.push(root.locator(button.selector).first());
   }
 
-  const filtered = root.locator('button, input[type="submit"]').filter({ hasText: pattern }).first();
-  if (await filtered.isVisible().catch(() => false)) {
-    return filtered;
-  }
+  candidates.push(
+    root.getByRole("button", { name: pattern }).first(),
+    root.getByRole("link", { name: pattern }).first(),
+    root.locator('button, [role="button"]').filter({ hasText: pattern }).first(),
+    root.locator('input[type="submit"]').filter({ hasText: pattern }).first(),
+    root.locator(`input[type="submit"][value="${escapedValue}"]`).first(),
+    root.locator('button, input[type="submit"], [role="button"], a').filter({ hasText: pattern }).last()
+  );
 
-  return root.getByRole("button", { name: /submit application/i }).first();
+  const found = await firstMatchingLocator(candidates);
+  if (found) return found;
+
+  throw new Error(`Could not resolve submit control for "${text}"`);
 }
 
 export async function findValidationErrors(root: FormRoot): Promise<string[]> {
@@ -239,7 +263,7 @@ export async function submitForm(root: FormRoot, logger?: RunLogger): Promise<{
   log("Clicking submit");
 
   const urlBefore = page.url();
-  const locator = await resolveSubmitLocator(root, button.text);
+  const locator = await resolveSubmitLocator(root, button);
 
   try {
     await Promise.race([

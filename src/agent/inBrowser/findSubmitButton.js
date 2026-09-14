@@ -23,9 +23,20 @@ export function findSubmitButton({ submitPatterns, negative }) {
     const score = scoreText(text);
     if (score <= 0) return;
 
+    const style = window.getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const visible =
+      style.visibility !== "hidden" &&
+      style.display !== "none" &&
+      parseFloat(style.opacity || "1") > 0 &&
+      rect.width > 0 &&
+      rect.height > 0;
+    if (!visible) return;
+
     const form = el.closest("form");
     let bonus = 0;
     if (form && form.querySelector("input, textarea, select")) bonus += 5;
+    if (form) bonus += 3;
 
     const id = el.id;
     const name = el.getAttribute("name");

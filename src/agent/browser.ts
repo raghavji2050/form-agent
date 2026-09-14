@@ -1,5 +1,10 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
 import { ensureRunDir, getRunDir, shouldRecordVideo } from "./artifacts.js";
+import {
+  applyStealthToContext,
+  buildContextOptions,
+  buildLaunchOptions,
+} from "./stealth.js";
 
 export { saveScreenshot } from "./artifacts.js";
 
@@ -39,7 +44,16 @@ export function getAgentTimeout(): number {
 
 export async function launchBrowser(): Promise<Browser> {
   const headless = process.env.HEADLESS !== "false";
-  return chromium.launch({ headless });
+  const opts = buildLaunchOptions(headless);
+  try {
+    return await chromium.launch(opts);
+  } catch (err) {
+    if (opts.channel) {
+      const { channel: _channel, ...fallback } = opts;
+      return chromium.launch(fallback);
+    }
+    throw err;
+  }
 }
 
 export interface BrowserSession {
@@ -54,11 +68,12 @@ export async function createBrowserSession(
   ensureRunDir(runId);
   const viewport = { width: 1280, height: 720 };
   const context = await browser.newContext({
-    viewport,
+    ...buildContextOptions(viewport),
     ...(shouldRecordVideo()
       ? { recordVideo: { dir: getRunDir(runId), size: viewport } }
       : {}),
   });
+  await applyStealthToContext((script) => context.addInitScript(script));
   const page = await context.newPage();
   page.setDefaultTimeout(getActionTimeout());
   page.setDefaultNavigationTimeout(getNavigationTimeout());

@@ -24,6 +24,8 @@ import { fillForm } from "./filler.js";
 import { findValidationErrors, submitForm } from "./submitter.js";
 import { prepareGreenhouseApplication } from "./greenhouse.js";
 import { withDiagnosis } from "./diagnose.js";
+import { playRecordingFocusTour } from "./recordingFocus.js";
+import { getBrowserChannel, isStealthEnabled } from "./stealth.js";
 
 export interface RunAgentOptions {
   runId?: string;
@@ -85,6 +87,12 @@ export async function runAgent(
   let submitClicked: boolean | undefined;
 
   logger.info("Starting");
+  if (isStealthEnabled()) {
+    const channel = getBrowserChannel();
+    logger.info(
+      `Stealth mode on${channel ? ` (browser channel: ${channel})` : ""}; set HEADLESS=false to reduce bot challenges`
+    );
+  }
   logger.info(`Opening URL: ${url}`);
 
   try {
@@ -164,7 +172,20 @@ export async function runAgent(
       logger.info(
         `Continuing screen recording for ${recordTailMs}ms after submit (errors, captcha, or thank-you page)`
       );
-      await page.waitForTimeout(recordTailMs);
+      try {
+        await playRecordingFocusTour(
+          page,
+          formRoot,
+          recordTailMs,
+          { submitButtonText: submission.submitButtonText },
+          (msg) => logger.info(msg)
+        );
+      } catch (recFocusErr) {
+        const msg =
+          recFocusErr instanceof Error ? recFocusErr.message : "Recording focus tour failed";
+        logger.warn(msg);
+        await page.waitForTimeout(recordTailMs).catch(() => {});
+      }
     }
 
     const success = isSubmissionSuccess(submission);
